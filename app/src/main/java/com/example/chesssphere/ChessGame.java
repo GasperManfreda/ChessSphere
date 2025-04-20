@@ -16,6 +16,8 @@ public class ChessGame {
     public void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
         board.movePiece(fromRow, fromCol, toRow, toCol);
     }
+
+
     public boolean isLegalMove(Piece piece, int toRow ,int toCol){
 
         if(piece != null) {
@@ -30,7 +32,12 @@ public class ChessGame {
                 return knightMove(fromRow, fromCol, toRow, toCol, piece);
             } else if (piece.getType() == Piece.BISHOP) {
                 return bishopMove(fromRow, fromCol, toRow, toCol, piece);
-            } else return false;
+            } else if (piece.getType() == Piece.QUEEN){
+                return queenMove(fromRow, fromCol, toRow, toCol, piece);
+            }else if (piece.getType() == Piece.KING){
+                return kingMove(fromRow, fromCol, toRow, toCol, piece);
+            }
+            else return false;
 
         }
         else return false;
@@ -132,6 +139,58 @@ public class ChessGame {
                 return false;
             }
         }
+        Piece target = board.getPiece(toRow, toCol);
+        if (target == null) {
+            piece.setPosition(toRow, toCol);
+            return true;
+        } else if (target.isWhite() != piece.isWhite()) {
+            piece.setPosition(toRow, toCol);
+            return true;
+        } else {
+            return false;
+        }
+    }
+    private boolean queenMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece){
+        int rowDiff = Math.abs(toRow - fromRow);
+        int colDiff = Math.abs(toCol - fromCol);
+        boolean isHorizontal = (toRow == fromRow && toCol != fromCol);
+        boolean isVertical = (toCol == fromCol && toRow != fromRow);
+        boolean isDiagonal = (rowDiff == colDiff && rowDiff != 0);
+        if (!isHorizontal && !isVertical && !isDiagonal) return false;
+
+
+        int rowStep = isHorizontal ? 0 : Integer.compare(toRow, fromRow);
+        int colStep = isVertical ? 0 : Integer.compare(toCol, fromCol);
+        int steps = isHorizontal ? colDiff : rowDiff;
+
+
+        for (int i = 1; i < steps; i++) {
+            int checkRow = fromRow + i * rowStep;
+            int checkCol = fromCol + i * colStep;
+            if (board.getPiece(checkRow, checkCol) != null) {
+                return false;
+            }
+        }
+
+
+        Piece target = board.getPiece(toRow, toCol);
+        if (target == null) {
+            piece.setPosition(toRow, toCol);
+            return true;
+        } else if (target.isWhite() != piece.isWhite()) {
+            piece.setPosition(toRow, toCol);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public boolean kingMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
+        int rowDiff = Math.abs(toRow - fromRow);
+        int colDiff = Math.abs(toCol - fromCol);
+        if (rowDiff > 1 || colDiff > 1) return false;
+
+
         Piece target = board.getPiece(toRow, toCol);
         if (target == null) {
             piece.setPosition(toRow, toCol);

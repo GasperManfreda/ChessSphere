@@ -159,6 +159,9 @@ public class ChessBoardView extends View {
                     if (newCol >= 0 && newCol < 8 && newRow >= 0 && newRow < 8 && game.isLegalMove(game.getBoard().getPiece(selectedRow, selectedCol),newRow,newCol) ) {
                         game.movePiece(selectedRow, selectedCol, newRow, newCol);
                     }
+                    else if (selectedRow == newRow && selectedCol == newCol){
+
+                    }
 
                     selectedRow = -1;  // Reset selection
                     selectedCol = -1;
