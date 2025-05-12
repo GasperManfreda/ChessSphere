@@ -2,206 +2,132 @@ package com.example.chesssphere;
 
 import android.util.Log;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import com.github.bhlangonijr.chesslib.Board;
+import com.github.bhlangonijr.chesslib.Piece;
+import com.github.bhlangonijr.chesslib.PieceType;
+import com.github.bhlangonijr.chesslib.Side;
+import com.github.bhlangonijr.chesslib.Square;
+import com.github.bhlangonijr.chesslib.move.Move;
+import com.github.bhlangonijr.chesslib.move.MoveGenerator;
+import com.github.bhlangonijr.chesslib.move.MoveGeneratorException;
+import com.github.bhlangonijr.chesslib.move.MoveList;
+
+
+
+
+
 public class ChessGame {
-    private Board board;
+    private Board chesslibBoard;
+
+
+
+
+
+
+
+    public int getCurrentPlayer() {
+        Side sideToMove = chesslibBoard.getSideToMove();
+
+        return (sideToMove == Side.WHITE) ? 0 : 1;
+    }
 
     public ChessGame() {
-        board = new Board();
+        this.chesslibBoard = new Board();
+
+    }
+    public static Square coordinateToSquare(int row, int col) {
+        if (row < 0 || row > 7 || col < 0 || col > 7) return Square.NONE;
+        try {
+            com.github.bhlangonijr.chesslib.File file = com.github.bhlangonijr.chesslib.File.values()[col];
+            com.github.bhlangonijr.chesslib.Rank rank = com.github.bhlangonijr.chesslib.Rank.values()[7 - row]; // Invert row
+            return Square.encode(rank, file);
+        } catch (Exception e) { return Square.NONE; }
     }
 
-    public Board getBoard() {
-        return board;
+
+    public static Position squareToPosition(Square square) {
+        if (square == null || square == Square.NONE) return null;
+        int col = square.getFile().ordinal();
+        int row = 7 - square.getRank().ordinal(); // Invert rank
+        return new Position(row, col);
     }
 
-    public void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
-        board.movePiece(fromRow, fromCol, toRow, toCol);
+
+
+
+    private boolean isValidSquare(int row, int col) {
+        return row >= 0 && row < 8 && col >= 0 && col < 8;
     }
 
+    public List<Position> getLegalMoves(int startRow, int startCol) {
+        List<Position> legalUiMoves = new ArrayList<>();
+        Square startSquare = coordinateToSquare(startRow, startCol);
+        if (startSquare == Square.NONE) return legalUiMoves;
 
-    public boolean isLegalMove(Piece piece, int toRow ,int toCol){
+        com.github.bhlangonijr.chesslib.Piece piece = chesslibBoard.getPiece(startSquare);
+        Side currentSide = chesslibBoard.getSideToMove();
 
-        if(piece != null) {
+        if (piece == com.github.bhlangonijr.chesslib.Piece.NONE || piece.getPieceSide() != currentSide) {
+            return legalUiMoves;
+        }
 
-            int fromRow = piece.getRow();
-            int fromCol = piece.getCol();
-            if (piece.getType() == Piece.PAWN) {
-                return pawnMove(fromRow, fromCol, toRow, toCol, piece);
-            } else if (piece.getType() == Piece.ROOK){
-                return rookMove(fromRow, fromCol, toRow, toCol, piece);
-            } else if (piece.getType() == Piece.KNIGHT) {
-                return knightMove(fromRow, fromCol, toRow, toCol, piece);
-            } else if (piece.getType() == Piece.BISHOP) {
-                return bishopMove(fromRow, fromCol, toRow, toCol, piece);
-            } else if (piece.getType() == Piece.QUEEN){
-                return queenMove(fromRow, fromCol, toRow, toCol, piece);
-            }else if (piece.getType() == Piece.KING){
-                return kingMove(fromRow, fromCol, toRow, toCol, piece);
+        try {
+            List<Move> allLegalMoves = MoveGenerator.generateLegalMoves(chesslibBoard);
+            for (Move move : allLegalMoves) {
+                if (move.getFrom() == startSquare) {
+                    Position targetPosition = squareToPosition(move.getTo());
+                    if (targetPosition != null) {
+                        legalUiMoves.add(targetPosition);
+                    }
+                }
             }
-            else return false;
-
+        } catch (MoveGeneratorException e) {
+            Log.e("ChessGame", "Error generating moves", e);
         }
-        else return false;
-    }
-    private boolean pawnMove(int fromRow, int fromCol, int toRow, int toCol,  Piece piece){
-
-        int direction;
-        if (piece.getColor() == 0)
-            direction = 1;
-        else
-            direction = -1;
-        //ne mores digonalno
-        if (toCol != fromCol && board.getPiece(toRow,toCol)==null) return false;
-        // en kvadratek naprej
-        if (toRow == fromRow - direction && board.getPiece(toRow, toCol) == null){
-            piece.setPosition(toRow, toCol);
-            return true;
-        }
-        //prvi premik za 2
-        int startRow = piece.isWhite() ? 6 : 1;;
-        if (fromRow == startRow && toRow == fromRow - 2 * direction && board.getPiece(toRow, toCol) == null && board.getPiece(fromRow - direction, fromCol) == null) {
-            piece.setPosition(toRow, toCol);
-            return true;
-        }
-        //pojej diagonalno
-        int colDiff = Math.abs(toCol - fromCol);
-        if(colDiff == 1){
-            Piece target = board.getPiece(toRow,toCol);
-            if(target !=null && target.isWhite() != piece.isWhite()){
-                piece.setPosition(toRow, toCol);
-                return true;
-            }
-        }
-        return false;
+        return legalUiMoves;
     }
 
-    private boolean rookMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece){
-        boolean isHorizontal = (toRow == fromRow && toCol != fromCol);
-        boolean isVertical = (toCol == fromCol && toRow != fromRow);
-        if (!isHorizontal && !isVertical) return false;
+    public boolean movePiece(int fromRow, int fromCol, int toRow, int toCol) {
 
-        int rowStep = isVertical ? Integer.compare(toRow, fromRow) : 0;
-        int colStep = isHorizontal ? Integer.compare(toCol, fromCol) : 0;
-        int steps = isHorizontal ? Math.abs(toCol - fromCol) : Math.abs(toRow - fromRow);
+        Square fromSquare = coordinateToSquare(fromRow, fromCol);
+        Square toSquare = coordinateToSquare(toRow, toCol);
+        if (fromSquare == Square.NONE || toSquare == Square.NONE) return false;
 
-        for (int i = 1; i < steps; i++) {
-            int checkRow = fromRow + i * rowStep;
-            int checkCol = fromCol + i * colStep;
-            if (board.getPiece(checkRow, checkCol) != null) {
-                return false;
+        // Default promotion to Queen (needs UI for real choice)
+        com.github.bhlangonijr.chesslib.Piece promotionPiece = com.github.bhlangonijr.chesslib.Piece.NONE;
+        com.github.bhlangonijr.chesslib.Piece movingPiece = chesslibBoard.getPiece(fromSquare);
+        if (movingPiece != com.github.bhlangonijr.chesslib.Piece.NONE && movingPiece.getPieceType() == PieceType.PAWN) {
+
+            Side side = movingPiece.getPieceSide();
+            int targetRankIndex = toSquare.getRank().ordinal();
+            if ((side == Side.WHITE && targetRankIndex == 7) || (side == Side.BLACK && targetRankIndex == 0)) {
+                promotionPiece = (side == Side.WHITE) ? com.github.bhlangonijr.chesslib.Piece.WHITE_QUEEN : com.github.bhlangonijr.chesslib.Piece.BLACK_QUEEN;
             }
         }
 
-        Piece target = board.getPiece(toRow, toCol);
-        if (target == null) {
-            piece.setPosition(toRow, toCol);
-            return true;
-        } else if (target.isWhite() != piece.isWhite()) {
-            piece.setPosition(toRow, toCol);
-            return true;
+        Move move = new Move(fromSquare, toSquare, promotionPiece);
+        boolean success = chesslibBoard.doMove(move);
+
+        // Log results
+        if (success) {
+            Log.d("ChessGame", "Move executed: " + move);
+            if (chesslibBoard.isMated()) Log.i("ChessGame", "CHECKMATE!");
+            else if (chesslibBoard.isStaleMate())Log.i("ChessGame", "STALEMATE!");
+            else if (chesslibBoard.isKingAttacked()) Log.i("ChessGame", "Check!");
         } else {
-            return false;
+            Log.w("ChessGame", "Illegal move attempted: " + move);
         }
-
-
+        return success;
     }
 
-    private boolean knightMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece){
-        int rowDiff = Math.abs(toRow - fromRow);
-        int colDiff = Math.abs(toCol - fromCol);
-
-        boolean isLShape = (rowDiff == 2 && colDiff == 1) || (rowDiff == 1 && colDiff == 2);
-        if (!isLShape) return false;
-
-        Piece target = board.getPiece(toRow, toCol);
-        if (target == null) {
-            piece.setPosition(toRow, toCol);
-            return true;
-        } else if (target.isWhite() != piece.isWhite()) {
-            piece.setPosition(toRow, toCol);
-            return true;
-        } else {
-            return false;
-        }
+    public com.github.bhlangonijr.chesslib.Piece getChesslibPieceAt(int row, int col) {
+        Square square = coordinateToSquare(row, col);
+        return (square == Square.NONE) ? com.github.bhlangonijr.chesslib.Piece.NONE : chesslibBoard.getPiece(square);
     }
 
-    private boolean bishopMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece){
-        int rowDiff = Math.abs(toRow - fromRow);
-        int colDiff = Math.abs(toCol - fromCol);
-        if (rowDiff != colDiff || rowDiff == 0 ) return false;
-
-        int rowStep = Integer.compare(toRow, fromRow);
-        int colStep = Integer.compare(toCol, fromCol);
-        int steps = rowDiff;
-        for (int i = 1; i < steps; i++) {
-            int checkRow = fromRow + i * rowStep;
-            int checkCol = fromCol + i * colStep;
-            if (board.getPiece(checkRow, checkCol) != null) {
-                return false;
-            }
-        }
-        Piece target = board.getPiece(toRow, toCol);
-        if (target == null) {
-            piece.setPosition(toRow, toCol);
-            return true;
-        } else if (target.isWhite() != piece.isWhite()) {
-            piece.setPosition(toRow, toCol);
-            return true;
-        } else {
-            return false;
-        }
-    }
-    private boolean queenMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece){
-        int rowDiff = Math.abs(toRow - fromRow);
-        int colDiff = Math.abs(toCol - fromCol);
-        boolean isHorizontal = (toRow == fromRow && toCol != fromCol);
-        boolean isVertical = (toCol == fromCol && toRow != fromRow);
-        boolean isDiagonal = (rowDiff == colDiff && rowDiff != 0);
-        if (!isHorizontal && !isVertical && !isDiagonal) return false;
-
-
-        int rowStep = isHorizontal ? 0 : Integer.compare(toRow, fromRow);
-        int colStep = isVertical ? 0 : Integer.compare(toCol, fromCol);
-        int steps = isHorizontal ? colDiff : rowDiff;
-
-
-        for (int i = 1; i < steps; i++) {
-            int checkRow = fromRow + i * rowStep;
-            int checkCol = fromCol + i * colStep;
-            if (board.getPiece(checkRow, checkCol) != null) {
-                return false;
-            }
-        }
-
-
-        Piece target = board.getPiece(toRow, toCol);
-        if (target == null) {
-            piece.setPosition(toRow, toCol);
-            return true;
-        } else if (target.isWhite() != piece.isWhite()) {
-            piece.setPosition(toRow, toCol);
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    public boolean kingMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
-        int rowDiff = Math.abs(toRow - fromRow);
-        int colDiff = Math.abs(toCol - fromCol);
-        if (rowDiff > 1 || colDiff > 1) return false;
-
-
-        Piece target = board.getPiece(toRow, toCol);
-        if (target == null) {
-            piece.setPosition(toRow, toCol);
-            return true;
-        } else if (target.isWhite() != piece.isWhite()) {
-            piece.setPosition(toRow, toCol);
-            return true;
-        } else {
-            return false;
-        }
-    }
 
 
 }

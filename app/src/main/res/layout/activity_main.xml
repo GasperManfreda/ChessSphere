@@ -6,8 +6,65 @@
         >
 
         <com.example.chesssphere.ChessBoardView
+
             android:id="@+id/chessBoardView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center" />
+            android:layout_marginLeft="3dp"
+            android:layout_marginTop="200dp" />
+
+        <LinearLayout
+            android:id="@+id/promotionChoiceLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_alignParentBottom="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="20dp"
+            android:padding="8dp"
+            android:background="#AA000000"
+            android:layout_marginTop="170dp"
+            android:layout_marginLeft="90dp"
+            android:visibility="gone">
+
+                <ImageButton
+                    android:id="@+id/promoteToQueenButton"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:layout_marginEnd="5dp"
+                    android:contentDescription="Promote to Queen"
+                    android:scaleType="fitCenter"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/white_queen" />
+
+
+                <ImageButton
+                    android:id="@+id/promoteToRookButton"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:layout_marginEnd="5dp"
+                    android:contentDescription="Promote to Rook"
+                    android:scaleType="fitCenter"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/white_rook" />
+
+                <ImageButton
+                    android:id="@+id/promoteToBishopButton"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:layout_marginEnd="5dp"
+                    android:contentDescription="Promote to Bishop"
+                    android:scaleType="fitCenter"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/white_bishop" />
+
+                <ImageButton
+                    android:id="@+id/promoteToKnightButton"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:contentDescription="Promote to Knight"
+                    android:scaleType="fitCenter"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/white_knight" />
+        </LinearLayout>
 </FrameLayout>

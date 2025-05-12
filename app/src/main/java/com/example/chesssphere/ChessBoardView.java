@@ -9,6 +9,11 @@ import android.content.Context;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import java.util.ArrayList;
+import com.github.bhlangonijr.chesslib.Piece;
+import com.github.bhlangonijr.chesslib.PieceType;
+import com.github.bhlangonijr.chesslib.Side;
+import java.util.List;
 
 public class ChessBoardView extends View {
     private ChessGame game;
@@ -20,10 +25,22 @@ public class ChessBoardView extends View {
     private Paint black_paint = new Paint();
     private Paint white_paint = new Paint();
     private Paint textPaint = new Paint();
+    private Paint highlightPaint = new Paint();
+    private Paint selectedHighlightPaint = new Paint();
 
-    private int selectedRow = -1;  // -1 means no piece selected
+    private int selectedRow = -1;
     private int selectedCol = -1;
-    private float dragX, dragY;    // Current drag position
+    private float dragX, dragY;
+    private ArrayList<Position> currentPossibleMoves = new ArrayList<>();
+
+    private boolean isDragging = false;
+    private Bitmap draggedPieceBitmap = null;
+    private float dragOffsetX, dragOffsetY;
+
+    private Piece clickedPiece;
+
+    private int downRow = -1;
+    private int downCol = -1;
 
     private Bitmap[][] pieceBitmaps = new Bitmap[2][6];
 
@@ -52,11 +69,32 @@ public class ChessBoardView extends View {
 
     }
 
+    private Bitmap getBitmapForChesslibPiece(com.github.bhlangonijr.chesslib.Piece piece) {
+        if (piece == null || piece == Piece.NONE) return null;
+
+        int colorIndex = (piece.getPieceSide() == Side.WHITE) ? 0 : 1;
+        int typeIndex = -1;
+        switch (piece.getPieceType()) {
+            case PAWN:   typeIndex = 0; break;
+            case ROOK:   typeIndex = 1; break;
+            case KNIGHT: typeIndex = 2; break;
+            case BISHOP: typeIndex = 3; break;
+            case QUEEN:  typeIndex = 4; break;
+            case KING:   typeIndex = 5; break;
+        }
+        if (typeIndex != -1 && colorIndex >= 0 && colorIndex < pieceBitmaps.length && typeIndex < pieceBitmaps[colorIndex].length) {
+            return pieceBitmaps[colorIndex][typeIndex];
+        }
+        return null;
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         drawBoard(canvas);
+        drawHighlights(canvas);
         drawPieces(canvas);
+
     }
 
     private void init() {
@@ -66,6 +104,63 @@ public class ChessBoardView extends View {
         textPaint.setTextSize(25);
         textPaint.setAntiAlias(true);
 
+
+        highlightPaint.setColor(Color.rgb(  128,  128, 128)); // Semi-transparent green
+        highlightPaint.setStyle(Paint.Style.FILL);
+        highlightPaint.setAntiAlias(true);
+
+
+        selectedHighlightPaint.setColor(Color.argb(100, 255, 255, 0)); // Semi-transparent yellow
+        selectedHighlightPaint.setStyle(Paint.Style.FILL);
+        selectedHighlightPaint.setAntiAlias(true);
+
+    }
+    private void drawHighlights(Canvas canvas) {
+
+        if (selectedRow != -1 && selectedCol != -1) {
+            int left = selectedCol * TILE_SIZE;
+            int top = selectedRow * TILE_SIZE;
+
+            canvas.drawRect(left, top, left + TILE_SIZE, top + TILE_SIZE, selectedHighlightPaint);
+        }
+
+
+        float moveIndicatorRadius = TILE_SIZE / 5f;
+        float captureIndicatorStrokeWidth = 5f;
+        float captureIndicatorRadius = TILE_SIZE / 2f * 0.8f;
+
+
+        Paint.Style originalStyle = highlightPaint.getStyle();
+        int originalColor = highlightPaint.getColor();
+        float originalStrokeWidth = highlightPaint.getStrokeWidth();
+
+
+        for (Position pos : currentPossibleMoves) {
+
+            float centerX = pos.col * TILE_SIZE + TILE_SIZE / 2f;
+            float centerY = pos.row * TILE_SIZE + TILE_SIZE / 2f;
+
+
+            Piece targetPiece = game.getChesslibPieceAt(pos.row, pos.col);
+
+            if (targetPiece != Piece.NONE) {
+
+                highlightPaint.setStyle(Paint.Style.STROKE);
+                highlightPaint.setStrokeWidth(captureIndicatorStrokeWidth);
+                highlightPaint.setColor(Color.rgb(  128,  128, 128)); // Semi-transparent red
+                canvas.drawCircle(centerX, centerY, captureIndicatorRadius, highlightPaint);
+            } else {
+
+                highlightPaint.setStyle(Paint.Style.FILL);
+                highlightPaint.setColor(Color.rgb(  128, 128, 128)); // Semi-transparent green
+                canvas.drawCircle(centerX, centerY, moveIndicatorRadius, highlightPaint);
+            }
+        }
+
+
+        highlightPaint.setStyle(originalStyle);
+        highlightPaint.setColor(originalColor);
+        highlightPaint.setStrokeWidth(originalStrokeWidth);
     }
 
     private void drawBoard(Canvas canvas){
@@ -73,7 +168,7 @@ public class ChessBoardView extends View {
         int height = getHeight();
 
 
-        //int tileSize = Math.min(width, height)/BOARD_SIZE;
+
 
         for(int row = 0;row < BOARD_SIZE;row ++){
             for(int col = 0;col < BOARD_SIZE; col++) {
@@ -107,70 +202,188 @@ public class ChessBoardView extends View {
     }
 
     private void drawPieces(Canvas canvas){
+
         for (int row = 0; row < BOARD_SIZE; row++) {
             for (int col = 0; col < BOARD_SIZE; col++) {
-                Piece piece = game.getBoard().getPiece(row, col);
-                if (piece != null) {
-                    Bitmap scaled_bitmap = Bitmap.createScaledBitmap(pieceBitmaps[piece.getColor()][piece.getType()],PIECE_SIZE,PIECE_SIZE,true);
+                if (row == selectedRow && col == selectedCol && isDragging) {
+                    continue;
+                }
+                com.github.bhlangonijr.chesslib.Piece chesslibPiece = game.getChesslibPieceAt(row, col);
+                if (chesslibPiece != Piece.NONE) {
+                     //Bitmap pieceBitmap = getBitmapForChesslibPiece(chesslibPiece);
+                     Bitmap scaled_bitmap = Bitmap.createScaledBitmap(getBitmapForChesslibPiece(chesslibPiece),PIECE_SIZE,PIECE_SIZE,true);
 
                     canvas.drawBitmap(scaled_bitmap, col*TILE_SIZE+20 , row*TILE_SIZE+20, null);
                 }
             }
         }
+        if (isDragging && draggedPieceBitmap != null) {
+            Bitmap scaled_bitmap = Bitmap.createScaledBitmap(draggedPieceBitmap,PIECE_SIZE,PIECE_SIZE,true);
+            canvas.drawBitmap(scaled_bitmap, dragX, dragY, null);
+        }
     }
+
+
 
     public void setGame(ChessGame game) {
         this.game = game;
     }
+    private boolean isValidMoveTarget(int targetRow, int targetCol) {
+        for (Position move : currentPossibleMoves) {
+            if (move.row == targetRow && move.col == targetCol) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void selectPiece(int row, int col) {
+        selectedRow = row;
+        selectedCol = col;
+
+        currentPossibleMoves = (ArrayList<Position>) game.getLegalMoves(selectedRow, selectedCol);
+
+        Log.d("ChessBoardView", "Selected UI (" + selectedRow + "," + selectedCol + "), found moves: " + currentPossibleMoves.size());
+
+    }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+
         float touchX = event.getX();
         float touchY = event.getY();
 
+        int col = (int) (touchX / TILE_SIZE);
+        int row = (int) (touchY / TILE_SIZE);
+
+        boolean onBoard = row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
+
         switch (event.getAction()) {
+
             case MotionEvent.ACTION_DOWN:
-                // Select a piece to drag
-                int col = (int) (touchX / TILE_SIZE);
-                int row = (int) (touchY / TILE_SIZE);
-                if (col >= 0 && col < 8 && row >= 0 && row < 8 ) {
-                    selectedRow = row;
-                    selectedCol = col;
-                    dragX = touchX - (TILE_SIZE / 2f);  // Center bitmap on touch
-                    dragY = touchY - (TILE_SIZE / 2f);
-                    invalidate();  // Redraw with piece at drag position
+
+                if (!onBoard) return false;
+
+
+                downRow = row;
+                downCol = col;
+                isDragging = false;
+
+
+                com.github.bhlangonijr.chesslib.Piece clickedChesslibPiece = game.getChesslibPieceAt(downRow, downCol);
+
+                int clickedPieceColor = (clickedChesslibPiece != com.github.bhlangonijr.chesslib.Piece.NONE) ?
+                        (clickedChesslibPiece.getPieceSide() == Side.WHITE ? 0 : 1) : -1;
+
+
+                if (selectedRow == -1) {
+                    if (clickedChesslibPiece != com.github.bhlangonijr.chesslib.Piece.NONE && clickedPieceColor == game.getCurrentPlayer()) {
+                        selectPiece(row, col);
+
+                        prepareDrag(clickedChesslibPiece, touchX, touchY);
+                    }
+                } else {
+
+                    if (row == selectedRow && col == selectedCol) {
+
+                        prepareDrag(clickedChesslibPiece, touchX, touchY);
+                        isDragging = false;
+
+                    }else {
+                        if (clickedChesslibPiece != com.github.bhlangonijr.chesslib.Piece.NONE && clickedPieceColor == game.getCurrentPlayer()) {
+                            selectPiece(row, col);
+                            prepareDrag(clickedChesslibPiece, touchX, touchY);
+                        }
+                    }
                 }
+                invalidate();
                 return true;
 
             case MotionEvent.ACTION_MOVE:
-                // Update drag position
-                if (selectedRow != -1 && selectedCol != -1) {
-                    dragX = touchX - (TILE_SIZE / 2f);
-                    dragY = touchY - (TILE_SIZE / 2f);
-                    invalidate();
+
+                if (selectedRow != -1) {
+
+                    float dx = Math.abs(touchX - (downCol * TILE_SIZE + TILE_SIZE / 2f));
+                    float dy = Math.abs(touchY - (downRow * TILE_SIZE + TILE_SIZE / 2f));
+                    float dragThreshold = TILE_SIZE / 4f;
+
+                    if (!isDragging && (dx > dragThreshold || dy > dragThreshold)) {
+
+                        isDragging = true;
+
+                        if (draggedPieceBitmap == null && selectedRow != -1) {
+                            com.github.bhlangonijr.chesslib.Piece pieceToDrag = game.getChesslibPieceAt(selectedRow, selectedCol);
+
+                        }
+                    }
+
+                    if (isDragging) {
+
+                        dragX = touchX - dragOffsetX;
+                        dragY = touchY - dragOffsetY;
+                        invalidate();
+                    }
                 }
                 return true;
 
             case MotionEvent.ACTION_UP:
-                // Drop the piece on a new square
-                if (selectedRow != -1 && selectedCol != -1) {
-                    int newCol = (int) (touchX / TILE_SIZE);
-                    int newRow = (int) (touchY / TILE_SIZE);
-                    if (newCol >= 0 && newCol < 8 && newRow >= 0 && newRow < 8 && game.isLegalMove(game.getBoard().getPiece(selectedRow, selectedCol),newRow,newCol) ) {
-                        game.movePiece(selectedRow, selectedCol, newRow, newCol);
-                    }
-                    else if (selectedRow == newRow && selectedCol == newCol){
 
+                if (selectedRow != -1) {
+
+                    boolean moveMade = false;
+                    int targetRow = row;
+                    int targetCol = col;
+
+                    if (onBoard && isValidMoveTarget(targetRow, targetCol)) {
+                        moveMade = game.movePiece(selectedRow, selectedCol, targetRow, targetCol);
+                        if (moveMade) {
+                            clearSelection();
+                        }
+                    } else {
+                        isDragging = false;
                     }
 
-                    selectedRow = -1;  // Reset selection
-                    selectedCol = -1;
-                    invalidate();  // Redraw at final position
+                    invalidate();
                 }
+
+                downRow = -1;
+                downCol = -1;
                 return true;
+            default:
+                return super.onTouchEvent(event);
         }
-        return super.onTouchEvent(event);
+
     }
 
+    private void prepareDrag(com.github.bhlangonijr.chesslib.Piece piece, float touchX, float touchY) {
+        if (piece == null || piece == com.github.bhlangonijr.chesslib.Piece.NONE) {
+            this.draggedPieceBitmap = null;
+            return;
+        }
+
+        this.draggedPieceBitmap = getBitmapForChesslibPiece(piece);
+
+
+
+        float bitmapX = selectedCol * TILE_SIZE + (TILE_SIZE - PIECE_SIZE) / 2f;
+        float bitmapY = selectedRow * TILE_SIZE + (TILE_SIZE - PIECE_SIZE) / 2f;
+        this.dragOffsetX = touchX - bitmapX;
+        this.dragOffsetY = touchY - bitmapY;
+        this.dragX = touchX - dragOffsetX;
+        this.dragY = touchY - dragOffsetY;
+
+    }
+    private void clearSelection() {
+        selectedRow = -1;
+        selectedCol = -1;
+        currentPossibleMoves.clear();
+
+        isDragging = false;
+        draggedPieceBitmap = null;
+
+        downRow = -1;
+        downCol = -1;
+
+    }
 
 }
